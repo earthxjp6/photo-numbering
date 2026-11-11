@@ -1,4 +1,4 @@
-const CACHE = 'photo-numbering-v1';
+const CACHE = 'photo-numbering-v2';
 const FILES = ['./', './index.html', './manifest.json', './jszip.min.js', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

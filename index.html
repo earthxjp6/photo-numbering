@@ -62,7 +62,7 @@
   .gal .it.sel{outline:3px solid #ffd84d;outline-offset:-3px}
   .gal .it.sel::after{content:"✓";position:absolute;top:4px;right:6px;background:#ffd84d;color:#111;border-radius:10px;width:20px;height:20px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
   .acts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
-  .acts .btn{flex:1;min-width:46%;font-size:14px;padding:11px 8px}
+  .acts .btn{flex:1;min-width:30%;font-size:14px;padding:11px 8px}
   .empty{color:#9aa2ae;text-align:center;padding:40px 0}
   #viewer{position:fixed;inset:0;background:#000;z-index:8;display:none;flex-direction:column}
   #viewer.on{display:flex}
@@ -132,7 +132,8 @@
   <header><button class="btn" id="galBack">‹ 相機</button><h2 id="galTitle">照片</h2><button class="btn" id="selBtn">選取</button></header>
   <div class="body">
     <div class="acts">
-      <button class="btn primary" id="shareBtn">存到相簿／分享</button>
+      <button class="btn primary" id="saveBtn">存到手機相簿</button>
+      <button class="btn" id="shareBtn">分享</button>
       <button class="btn" id="zipBtn">下載 ZIP＋清單</button>
       <button class="btn danger" id="delBtn">刪除</button>
     </div>
@@ -148,7 +149,8 @@
   <div class="cap" id="vCap"></div>
   <div class="bar">
     <button class="btn" id="vClose">關閉</button>
-    <button class="btn primary" id="vShare">存到相簿／分享</button>
+    <button class="btn primary" id="vSave">存到相簿</button>
+    <button class="btn" id="vShare">分享</button>
     <button class="btn danger" id="vDel">刪除</button>
   </div>
 </div>
@@ -404,6 +406,20 @@
     photos = photos.filter(p=>!ids.has(p.id)); selected.clear();
     updateThumb(); renderGallery();
   }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+  async function saveToPhone(list){
+    if (!list.length){ toast('沒有選取照片'); return; }
+    // iPhone: the share sheet has「儲存影像」, which goes straight into Photos
+    if (isIOS){ share(list); return; }
+    // Android & others: download each JPG; gallery apps show them in the "Download" album
+    const names = uniqueNames(list);
+    for (let i=0;i<list.length;i++){
+      download(list[i].blob, names[i]);
+      if (list.length>1) await new Promise(r=>setTimeout(r, 400));
+    }
+    toast(list.length===1 ? '已存到手機（相簿 › Download）' : `已存 ${list.length} 張到手機（相簿 › Download）`);
+  }
+  $('saveBtn').onclick = () => saveToPhone(targets());
   $('shareBtn').onclick = () => share(targets());
   $('zipBtn').onclick = () => zip(targets());
   $('delBtn').onclick = () => {
@@ -417,6 +433,7 @@
   let cur=null;
   function openViewer(p){ cur=p; $('vImg').src=p.url; $('vCap').textContent=p.label+'　'+p.time; $('vDel').textContent='刪除'; $('vDel').dataset.arm=''; $('viewer').classList.add('on'); }
   $('vClose').onclick = () => $('viewer').classList.remove('on');
+  $('vSave').onclick = () => cur && saveToPhone([cur]);
   $('vShare').onclick = () => cur && share([cur]);
   $('vDel').onclick = () => {
     const b=$('vDel'); if(!b.dataset.arm){ b.dataset.arm='1'; b.textContent='確定刪除？'; return; }
