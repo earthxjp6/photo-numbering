@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#000000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="拍照編號">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>拍照編號</title>
+<style>
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:#000;color:#fff;overflow:hidden;
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif}
+  #stage{position:fixed;inset:0;display:flex;flex-direction:column}
+  #view{position:relative;flex:1;overflow:hidden;background:#000}
+  video{position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000}
+  #badge{position:absolute;padding:8px 12px;border-radius:10px;background:rgba(0,0,0,.6);pointer-events:none;line-height:1.25;max-width:80%}
+  #badge .l{font-weight:700;font-size:26px;color:#ffd84d;font-variant-numeric:tabular-nums}
+  #badge .s{font-size:14px;color:#fff;font-weight:600}
+  #badge.off{opacity:.55}
+  .tl{top:calc(env(safe-area-inset-top) + 64px);left:14px}
+  .tr{top:calc(env(safe-area-inset-top) + 64px);right:14px;text-align:right}
+  .bl{bottom:14px;left:14px}
+  .br{bottom:14px;right:14px;text-align:right}
+  #top{position:absolute;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top) + 10px) 12px 10px;display:flex;justify-content:space-between;align-items:center;
+    background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,0));z-index:2}
+  .round{width:44px;height:44px;border-radius:22px;border:0;background:rgba(255,255,255,.18);color:#fff;font-size:20px;display:flex;align-items:center;justify-content:center}
+  #msg{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:30px;gap:14px;font-size:15px;color:#ddd;line-height:1.6}
+  #msg.on{display:flex}
+  #bottom{padding:14px 22px calc(env(safe-area-inset-bottom) + 18px);display:flex;align-items:center;justify-content:space-between;background:#000}
+  #thumb{width:56px;height:56px;border-radius:10px;border:2px solid rgba(255,255,255,.7);background:#222 center/cover no-repeat;position:relative}
+  #thumb span{position:absolute;top:-8px;right:-8px;background:#ffd84d;color:#111;font-size:12px;font-weight:700;border-radius:10px;padding:1px 6px;min-width:20px;text-align:center}
+  #shutter{width:78px;height:78px;border-radius:50%;border:5px solid #fff;background:#fff;box-shadow:inset 0 0 0 4px #000;transition:transform .08s}
+  #shutter:active{transform:scale(.92)}
+  #shutter:disabled{opacity:.4}
+  #nextLabel{text-align:center;font-size:15px;color:#ffd84d;font-weight:700;padding:8px 0 0;background:#000;font-variant-numeric:tabular-nums}
+  #flash{position:fixed;inset:0;background:#fff;opacity:0;pointer-events:none;transition:opacity .25s}
+  #flash.on{opacity:.75;transition:none}
+  .btn{font:inherit;font-size:15px;border:0;border-radius:12px;padding:12px 16px;background:#2a2d33;color:#fff}
+  .btn.primary{background:#0f6fd6}
+  .btn.danger{color:#ff7a7a}
+  .file-hidden{display:none}
+  /* sheets */
+  .sheet{position:fixed;inset:0;background:#111316;z-index:5;display:none;flex-direction:column}
+  .sheet.on{display:flex}
+  .sheet header{padding:calc(env(safe-area-inset-top) + 10px) 14px 10px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #2a2d33}
+  .sheet header h2{font-size:18px;margin:0;flex:1}
+  .sheet .body{flex:1;overflow:auto;padding:14px 14px calc(env(safe-area-inset-bottom) + 20px);-webkit-overflow-scrolling:touch}
+  label.f{display:block;font-size:13px;color:#9aa2ae;margin-bottom:14px}
+  label.f input[type=text],label.f input[type=number],label.f select{display:block;width:100%;margin-top:6px;font:inherit;font-size:17px;color:#fff;background:#1d2128;border:1px solid #2f343c;border-radius:10px;padding:11px 12px}
+  .row{display:flex;gap:10px}.row>*{flex:1}
+  .chk{display:flex;align-items:center;gap:10px;font-size:16px;padding:10px 0}
+  .chk input{width:22px;height:22px}
+  .hint{font-size:13px;color:#9aa2ae;line-height:1.6;margin-top:10px}
+  .gal{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+  .gal .it{position:relative;aspect-ratio:1/1;background:#222 center/cover no-repeat;border-radius:6px;overflow:hidden}
+  .gal .it span{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:3px 5px;background:rgba(0,0,0,.6);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .gal .it.sel{outline:3px solid #ffd84d;outline-offset:-3px}
+  .gal .it.sel::after{content:"✓";position:absolute;top:4px;right:6px;background:#ffd84d;color:#111;border-radius:10px;width:20px;height:20px;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center}
+  .acts{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+  .acts .btn{flex:1;min-width:46%;font-size:14px;padding:11px 8px}
+  .empty{color:#9aa2ae;text-align:center;padding:40px 0}
+  #viewer{position:fixed;inset:0;background:#000;z-index:8;display:none;flex-direction:column}
+  #viewer.on{display:flex}
+  #viewer .img{flex:1;display:flex;align-items:center;justify-content:center;overflow:hidden;padding-top:env(safe-area-inset-top)}
+  #viewer img{max-width:100%;max-height:100%;object-fit:contain}
+  #viewer .bar{display:flex;gap:8px;padding:12px 12px calc(env(safe-area-inset-bottom) + 14px)}
+  #viewer .bar .btn{flex:1}
+  #viewer .cap{text-align:center;font-weight:700;color:#ffd84d;padding:8px}
+  .toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 170px);transform:translateX(-50%);background:rgba(30,30,30,.92);color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20;white-space:nowrap}
+  .toast.on{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="view">
+    <video id="video" playsinline muted autoplay></video>
+    <div id="badge" class="tl"><div class="l" id="bL">001</div><div class="s" id="bN"></div><div class="s" id="bT"></div></div>
+    <div id="top">
+      <button class="round" id="setBtn" aria-label="設定">⚙️</button>
+      <button class="round" id="flipBtn" aria-label="切換鏡頭">🔄</button>
+    </div>
+    <div id="msg">
+      <div id="msgText">正在開啟相機…</div>
+      <button class="btn primary" id="retryBtn" style="display:none">重新開啟相機</button>
+      <label class="btn" for="sysCam" id="sysCamBtn" style="display:none">改用系統相機拍照</label>
+    </div>
+  </div>
+  <div id="nextLabel">下一張：<span id="nl">001</span></div>
+  <div id="bottom">
+    <button id="thumb" aria-label="照片"><span id="cnt">0</span></button>
+    <button id="shutter" aria-label="拍照"></button>
+    <label class="round" for="sysCam" aria-label="系統相機或相簿" style="font-size:18px">🖼️</label>
+  </div>
+</div>
+<input id="sysCam" class="file-hidden" type="file" accept="image/*" multiple>
+<div id="flash"></div>
+
+<!-- settings -->
+<div class="sheet" id="settings">
+  <header><h2>編號設定</h2><button class="btn primary" id="setDone">完成</button></header>
+  <div class="body">
+    <label class="f">前綴（樣品／批號，可留空）<input id="prefix" type="text" placeholder="例：HCB101-S" maxlength="40" autocapitalize="characters"></label>
+    <div class="row">
+      <label class="f">下一個編號<input id="num" type="number" inputmode="numeric" min="0" step="1" value="1"></label>
+      <label class="f">位數（補零）
+        <select id="pad"><option value="1">1</option><option value="2">2（01）</option><option value="3" selected>3（001）</option><option value="4">4（0001）</option></select>
+      </label>
+    </div>
+    <label class="f">附註（印在照片上，可留空）<input id="note" type="text" placeholder="例：Day 7 培養液" maxlength="60"></label>
+    <div class="row">
+      <label class="f">編號位置
+        <select id="pos"><option value="tl" selected>左上</option><option value="tr">右上</option><option value="bl">左下</option><option value="br">右下</option></select>
+      </label>
+      <label class="f">字體大小
+        <select id="size"><option value="0.035">小</option><option value="0.05" selected>中</option><option value="0.07">大</option></select>
+      </label>
+    </div>
+    <label class="chk"><input id="stamp" type="checkbox" checked> 把編號印在照片上</label>
+    <label class="chk"><input id="ts" type="checkbox" checked> 加上日期時間</label>
+    <label class="chk"><input id="vib" type="checkbox" checked> 拍照時震動（Android）</label>
+    <p class="hint">照片存在這支手機的 App 資料裡，關掉 App 也不會消失；但刪除 App 或清除瀏覽器資料會一起刪掉，重要照片請記得「存到相簿」或下載 ZIP。</p>
+  </div>
+</div>
+
+<!-- gallery -->
+<div class="sheet" id="gallery">
+  <header><button class="btn" id="galBack">‹ 相機</button><h2 id="galTitle">照片</h2><button class="btn" id="selBtn">選取</button></header>
+  <div class="body">
+    <div class="acts">
+      <button class="btn primary" id="shareBtn">存到相簿／分享</button>
+      <button class="btn" id="zipBtn">下載 ZIP＋清單</button>
+      <button class="btn danger" id="delBtn">刪除</button>
+    </div>
+    <div class="hint" id="selHint" style="margin:-4px 0 10px"></div>
+    <div class="gal" id="gal"></div>
+    <div class="empty" id="empty">還沒有照片</div>
+  </div>
+</div>
+
+<!-- single viewer -->
+<div id="viewer">
+  <div class="img"><img id="vImg" alt=""></div>
+  <div class="cap" id="vCap"></div>
+  <div class="bar">
+    <button class="btn" id="vClose">關閉</button>
+    <button class="btn primary" id="vShare">存到相簿／分享</button>
+    <button class="btn danger" id="vDel">刪除</button>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script src="jszip.min.js"></script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const KEY = 'photo-numbering-settings-v1';
+  const fields = ['prefix','num','pad','note','pos','size','stamp','ts','vib'];
+
+  // ---------- settings ----------
+  function loadSettings(){
+    try{
+      const s = JSON.parse(localStorage.getItem(KEY) || '{}');
+      fields.forEach(f=>{ if(f in s){ const el=$(f); if(el.type==='checkbox') el.checked=!!s[f]; else el.value=s[f]; } });
+    }catch(e){}
+  }
+  function saveSettings(){
+    try{ const s={}; fields.forEach(f=>{const el=$(f); s[f]= el.type==='checkbox'? el.checked : el.value;}); localStorage.setItem(KEY, JSON.stringify(s)); }catch(e){}
+  }
+  const curNum = () => { const n=parseInt($('num').value,10); return isNaN(n)||n<0 ? 1 : n; };
+  const label = n => ($('prefix').value.trim()) + String(n).padStart(parseInt($('pad').value,10),'0');
+  const safe = s => s.replace(/[\\/:*?"<>|\s]+/g,'_');
+  const pad2 = n => String(n).padStart(2,'0');
+  const stampTime = d => `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+
+  function refresh(){
+    const l = label(curNum());
+    $('bL').textContent = l; $('nl').textContent = l;
+    $('bN').textContent = $('note').value.trim();
+    $('bT').textContent = $('ts').checked ? stampTime(new Date()) : '';
+    $('badge').className = $('pos').value + ($('stamp').checked ? '' : ' off');
+    saveSettings();
+  }
+  fields.forEach(f=>{ $(f).addEventListener('input',refresh); $(f).addEventListener('change',refresh); });
+  setInterval(()=>{ if($('ts').checked) $('bT').textContent = stampTime(new Date()); }, 1000);
+
+  function toast(m){ const t=$('toast'); t.textContent=m; t.classList.add('on'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('on'),2000); }
+
+  // ---------- storage (IndexedDB) ----------
+  let db = null, photos = []; // photos: {id,label,name,note,time,blob,url}
+  function openDB(){
+    return new Promise((res)=>{
+      try{
+        const r = indexedDB.open('photo-numbering', 1);
+        r.onupgradeneeded = () => r.result.createObjectStore('photos', {keyPath:'id'});
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => res(null);
+      }catch(e){ res(null); }
+    });
+  }
+  function tx(mode){ return db.transaction('photos', mode).objectStore('photos'); }
+  function dbAll(){ return new Promise(res=>{ if(!db) return res([]); const q=tx('readonly').getAll(); q.onsuccess=()=>res(q.result||[]); q.onerror=()=>res([]); }); }
+  function dbPut(p){ return new Promise(res=>{ if(!db) return res(false); const {url, ...rec}=p; const q=tx('readwrite').put(rec); q.onsuccess=()=>res(true); q.onerror=()=>res(false); }); }
+  function dbDel(id){ return new Promise(res=>{ if(!db) return res(); const q=tx('readwrite').delete(id); q.onsuccess=q.onerror=()=>res(); }); }
+
+  // ---------- camera ----------
+  let stream = null, facing = 'environment', starting = false;
+  const video = $('video');
+  function showMsg(text, retry){
+    $('msgText').textContent = text; $('msg').classList.add('on');
+    $('retryBtn').style.display = retry ? '' : 'none';
+    $('sysCamBtn').style.display = retry ? '' : 'none';
+    $('shutter').disabled = true;
+  }
+  function stopCam(){ if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; } }
+  async function startCam(){
+    if (starting) return; starting = true;
+    stopCam();
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      starting=false;
+      showMsg(location.protocol==='https:' || location.hostname==='localhost'
+        ? '這個瀏覽器不支援即時相機畫面。'
+        : '即時相機需要用 https:// 網址開啟本 App。', true);
+      return;
+    }
+    showMsg('正在開啟相機…', false);
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:facing}, width:{ideal:4096}, height:{ideal:3072}}});
+    }catch(e){
+      try{ stream = await navigator.mediaDevices.getUserMedia({audio:false, video:{facingMode:{ideal:facing}}}); }
+      catch(e2){
+        starting=false;
+        showMsg(e2 && e2.name==='NotAllowedError' ? '相機權限被拒絕。請到手機設定允許此 App／瀏覽器使用相機，再按重新開啟。' : '無法開啟相機（'+(e2&&e2.name||'錯誤')+'）。', true);
+        return;
+      }
+    }
+    video.srcObject = stream;
+    try{ await video.play(); }catch(e){}
+    video.style.transform = facing==='user' ? 'scaleX(-1)' : '';
+    $('msg').classList.remove('on'); $('shutter').disabled = false;
+    starting = false;
+  }
+  $('retryBtn').onclick = startCam;
+  $('flipBtn').onclick = () => { facing = facing==='environment' ? 'user' : 'environment'; startCam(); };
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopCam(); else startCam();
+  });
+
+  // ---------- stamping ----------
+  function drawStamp(g, w, h, lab, note, when){
+    if (!$('stamp').checked) return;
+    const lines=[lab]; if(note) lines.push(note); if($('ts').checked) lines.push(stampTime(when));
+    const base = Math.max(16, Math.round(Math.min(w,h) * parseFloat($('size').value)));
+    const sizes = lines.map((_,i)=> i===0 ? base : Math.round(base*0.6));
+    const font = s => `bold ${s}px -apple-system,"PingFang TC","Noto Sans TC","Microsoft JhengHei",sans-serif`;
+    let bw=0; lines.forEach((t,i)=>{ g.font=font(sizes[i]); bw=Math.max(bw,g.measureText(t).width); });
+    const padX=Math.round(base*0.4), padY=Math.round(base*0.3), gap=Math.round(base*0.18);
+    const bh = sizes.reduce((a,b)=>a+b,0) + gap*(lines.length-1) + padY*2; bw += padX*2;
+    const m=Math.round(base*0.4), pos=$('pos').value;
+    const x = pos.endsWith('r') ? w-bw-m : m, y = pos.startsWith('b') ? h-bh-m : m;
+    const r=Math.round(base*0.2);
+    g.fillStyle='rgba(0,0,0,0.62)';
+    g.beginPath(); g.moveTo(x+r,y); g.arcTo(x+bw,y,x+bw,y+bh,r); g.arcTo(x+bw,y+bh,x,y+bh,r); g.arcTo(x,y+bh,x,y,r); g.arcTo(x,y,x+bw,y,r); g.closePath(); g.fill();
+    g.textBaseline='top'; let ty=y+padY;
+    lines.forEach((t,i)=>{ g.font=font(sizes[i]); g.fillStyle = i===0 ? '#ffd84d' : '#ffffff';
+      if (pos.endsWith('r')){ g.textAlign='right'; g.fillText(t, x+bw-padX, ty); } else { g.textAlign='left'; g.fillText(t, x+padX, ty); }
+      ty += sizes[i]+gap; });
+    g.textAlign='left';
+  }
+
+  async function addPhoto(source, sw, sh, when, mirror){
+    const n = curNum(), lab = label(n), note = $('note').value.trim();
+    const MAX = 4096, k = Math.min(1, MAX/Math.max(sw,sh));
+    const w = Math.round(sw*k), h = Math.round(sh*k);
+    const c = document.createElement('canvas'); c.width=w; c.height=h;
+    const g = c.getContext('2d');
+    if (mirror){ g.save(); g.translate(w,0); g.scale(-1,1); g.drawImage(source,0,0,w,h); g.restore(); }
+    else g.drawImage(source,0,0,w,h);
+    drawStamp(g, w, h, lab, note, when);
+    const blob = await new Promise(res=>c.toBlob(res,'image/jpeg',0.92));
+    if (!blob) throw new Error('encode');
+    const p = { id: Date.now().toString(36)+Math.random().toString(36).slice(2,6), label:lab, name:safe(lab)+'.jpg', note, time:stampTime(when), created:Date.now(), blob };
+    p.url = URL.createObjectURL(blob);
+    photos.push(p);
+    const ok = await dbPut(p);
+    if (!ok && db) toast('⚠️ 儲存空間不足，這張只暫存在畫面中');
+    $('num').value = n+1; refresh(); updateThumb();
+    return p;
+  }
+
+  $('shutter').onclick = async () => {
+    if (!stream || !video.videoWidth) return;
+    $('shutter').disabled = true;
+    const f=$('flash'); f.classList.add('on'); setTimeout(()=>f.classList.remove('on'),60);
+    try{ if($('vib').checked && navigator.vibrate) navigator.vibrate(40); }catch(e){}
+    try{
+      const p = await addPhoto(video, video.videoWidth, video.videoHeight, new Date(), facing==='user');
+      toast('✓ ' + p.label);
+    }catch(e){ toast('拍照失敗，請再試一次'); }
+    $('shutter').disabled = false;
+  };
+
+  // system camera / library import (also used as fallback)
+  async function decode(file){
+    if (window.createImageBitmap){ try { return await createImageBitmap(file, {imageOrientation:'from-image'}); } catch(e){} }
+    return await new Promise((res,rej)=>{ const img=new Image(); img.onload=()=>res(img); img.onerror=rej; img.src=URL.createObjectURL(file); });
+  }
+  $('sysCam').addEventListener('change', async e => {
+    const files = Array.from(e.target.files||[]); e.target.value='';
+    let ok=0;
+    for (let i=0;i<files.length;i++){
+      try{
+        const img = await decode(files[i]);
+        const when = files.length>1 && files[i].lastModified ? new Date(files[i].lastModified) : new Date();
+        await addPhoto(img, img.width||img.naturalWidth, img.height||img.naturalHeight, when, false);
+        if (img.close) try{img.close();}catch(_){}
+        ok++;
+      }catch(err){ toast('有照片無法讀取'); }
+    }
+    if (ok) toast(ok===1 ? '✓ 已加入 1 張' : `✓ 已加入 ${ok} 張`);
+  });
+
+  // ---------- thumb & gallery ----------
+  function updateThumb(){
+    $('cnt').textContent = photos.length;
+    const last = photos[photos.length-1];
+    $('thumb').style.backgroundImage = last ? `url(${last.url})` : 'none';
+  }
+  let selecting = false, selected = new Set();
+  function renderGallery(){
+    const gal = $('gal'); gal.innerHTML='';
+    photos.slice().reverse().forEach(p=>{
+      const d = document.createElement('div'); d.className='it' + (selected.has(p.id)?' sel':'');
+      d.style.backgroundImage = `url(${p.url})`;
+      const s = document.createElement('span'); s.textContent = p.label; d.appendChild(s);
+      d.onclick = () => {
+        if (selecting){ selected.has(p.id) ? selected.delete(p.id) : selected.add(p.id); renderGallery(); }
+        else openViewer(p);
+      };
+      gal.appendChild(d);
+    });
+    $('empty').style.display = photos.length ? 'none' : 'block';
+    $('galTitle').textContent = `照片（${photos.length}）`;
+    $('selBtn').textContent = selecting ? '取消' : '選取';
+    $('selHint').textContent = selecting ? `已選 ${selected.size} 張；下方按鈕只處理已選照片` : '下方按鈕會處理全部照片；按「選取」可只挑幾張';
+    $('delBtn').textContent = selecting ? '刪除已選' : '全部刪除';
+    $('delBtn').dataset.arm='';
+  }
+  const targets = () => selecting ? photos.filter(p=>selected.has(p.id)) : photos.slice();
+  $('thumb').onclick = () => { selecting=false; selected.clear(); renderGallery(); $('gallery').classList.add('on'); };
+  $('galBack').onclick = () => $('gallery').classList.remove('on');
+  $('selBtn').onclick = () => { selecting=!selecting; selected.clear(); renderGallery(); };
+
+  function uniqueNames(list){
+    const seen={};
+    return list.map(p=>{ let n=p.name; if(seen[n]){ n=n.replace(/\.jpg$/,'')+'_'+(++seen[p.name])+'.jpg'; } else seen[n]=1; return n; });
+  }
+  async function share(list){
+    if (!list.length){ toast('沒有選取照片'); return; }
+    const names = uniqueNames(list);
+    const files = list.map((p,i)=> new File([p.blob], names[i], {type:'image/jpeg'}));
+    if (navigator.canShare && navigator.canShare({files})){
+      try{ await navigator.share({files}); }
+      catch(e){ if (e && e.name!=='AbortError') toast('分享失敗：'+e.name); }
+    } else if (list.length===1){
+      download(files[0], names[0]);
+    } else {
+      toast('這個瀏覽器不支援分享多張，改下載 ZIP'); zip(list);
+    }
+  }
+  function download(blob, name){
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name;
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),5000);
+  }
+  function csv(list){
+    const names=uniqueNames(list), q=s=>'"'+String(s).replace(/"/g,'""')+'"';
+    const rows=[['編號','檔名','附註','時間']].concat(list.map((p,i)=>[p.label,names[i],p.note||'',p.time]));
+    return '﻿'+rows.map(r=>r.map(q).join(',')).join('\r\n');
+  }
+  async function zip(list){
+    if (!list.length){ toast('沒有選取照片'); return; }
+    if (!window.JSZip){ toast('ZIP 元件未載入'); return; }
+    const b=$('zipBtn'), old=b.textContent; b.disabled=true; b.textContent='打包中…';
+    try{
+      const z=new JSZip(), names=uniqueNames(list);
+      list.forEach((p,i)=>z.file(names[i], p.blob));
+      z.file('photo-list.csv', csv(list));
+      const blob = await z.generateAsync({type:'blob'});
+      const f=list[0].label, l=list[list.length-1].label;
+      const name = safe(f===l ? f : f+'_to_'+l)+'.zip';
+      const file = new File([blob], name, {type:'application/zip'});
+      if (navigator.canShare && navigator.canShare({files:[file]})){
+        try{ await navigator.share({files:[file]}); } catch(e){ if(e && e.name!=='AbortError') download(blob,name); }
+      } else download(blob, name);
+    } finally { b.disabled=false; b.textContent=old; }
+  }
+  async function remove(list){
+    for (const p of list){ await dbDel(p.id); URL.revokeObjectURL(p.url); }
+    const ids = new Set(list.map(p=>p.id));
+    photos = photos.filter(p=>!ids.has(p.id)); selected.clear();
+    updateThumb(); renderGallery();
+  }
+  $('shareBtn').onclick = () => share(targets());
+  $('zipBtn').onclick = () => zip(targets());
+  $('delBtn').onclick = () => {
+    const b=$('delBtn'), list=targets();
+    if (!list.length){ toast('沒有選取照片'); return; }
+    if (!b.dataset.arm){ b.dataset.arm='1'; b.textContent=`再按一次刪除 ${list.length} 張`; setTimeout(()=>{ if(b.dataset.arm){ b.dataset.arm=''; b.textContent= selecting?'刪除已選':'全部刪除'; } },3000); return; }
+    remove(list).then(()=>toast('已刪除'));
+  };
+
+  // viewer
+  let cur=null;
+  function openViewer(p){ cur=p; $('vImg').src=p.url; $('vCap').textContent=p.label+'　'+p.time; $('vDel').textContent='刪除'; $('vDel').dataset.arm=''; $('viewer').classList.add('on'); }
+  $('vClose').onclick = () => $('viewer').classList.remove('on');
+  $('vShare').onclick = () => cur && share([cur]);
+  $('vDel').onclick = () => {
+    const b=$('vDel'); if(!b.dataset.arm){ b.dataset.arm='1'; b.textContent='確定刪除？'; return; }
+    remove([cur]).then(()=>{ $('viewer').classList.remove('on'); toast('已刪除'); });
+  };
+
+  // settings sheet
+  $('setBtn').onclick = () => $('settings').classList.add('on');
+  $('setDone').onclick = () => { refresh(); $('settings').classList.remove('on'); };
+
+  // ---------- boot ----------
+  loadSettings(); refresh();
+  (async ()=>{
+    db = await openDB();
+    const all = await dbAll();
+    all.sort((a,b)=>(a.created||0)-(b.created||0));
+    photos = all.map(p=>({...p, url:URL.createObjectURL(p.blob)}));
+    updateThumb();
+    try{ if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); }catch(e){}
+  })();
+  startCam();
+  if ('serviceWorker' in navigator && location.protocol==='https:'){
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  }
+})();
+</script>
+</body>
+</html>
